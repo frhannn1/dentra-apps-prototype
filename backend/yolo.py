@@ -3,6 +3,9 @@ from inference_sdk import InferenceHTTPClient
 from tempfile import NamedTemporaryFile
 from dotenv import load_dotenv
 import requests
+from PIL import Image
+import io
+import base64
 
 # Load environment variables
 load_dotenv()
@@ -16,13 +19,13 @@ client = InferenceHTTPClient(
 def detect_dental_damage(image_bytes):
     temp_file_path = None
 
-    # Simpan gambar ke file sementara
+    # Save the image to a temporary file
     try:
         with NamedTemporaryFile(delete=False, suffix=".jpg") as temp:
             temp.write(image_bytes)
             temp_file_path = temp.name
 
-        # Jalankan workflow Roboflow
+        # Run the Roboflow workflow
         result = client.run_workflow(
             workspace_name=os.getenv('ROBOFLOW_WORKSPACE_NAME'),
             workflow_id=os.getenv('ROBOFLOW_WORKFLOW_ID'),
@@ -30,26 +33,30 @@ def detect_dental_damage(image_bytes):
             use_cache=True
         )
 
-        # print("Raw result from Roboflow:", result)
-
-        # Validasi dan ekstrak prediksi
+        # Validate and extract predictions
         if isinstance(result, list) and len(result) > 0 and isinstance(result[0], dict):
             predictions = result[0].get("predictions", {}).get("predictions", [])
+            label_visualization = result[0].get("label_visualization", None)
+        
             if predictions:
+                # Extract 'class' and 'confidence' from predictions
                 class_list = [
                     {"class": pred.get("class"), "confidence": pred.get("confidence")}
                     for pred in predictions if "class" in pred
                 ]
+                
+                # You can now return both the class data and the label visualization
                 return {
                     "success": True,
-                    "data": class_list
+                    "data": class_list,
+                    "label_visualization": label_visualization
                 }
-            
-     
-        # Jika tidak ada prediksi
+
+        # If no predictions were found
         return {
             "success": True,
-            "data": []
+            "data": [],
+            "label_visualization": None
         }
     except requests.exceptions.HTTPError as e:
         print("HTTPError:", e)
@@ -70,3 +77,5 @@ def detect_dental_damage(image_bytes):
     finally:
         if temp_file_path and os.path.exists(temp_file_path):
             os.remove(temp_file_path)
+
+
